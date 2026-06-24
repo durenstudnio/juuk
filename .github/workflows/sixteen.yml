@@ -15,10 +15,10 @@ on:
         description: "TARGET_DEVICE_MODEL."
         required: true
         default: "SM-A346E"
-      PIXELDRAIN_ID:
-        description: "Pixeldrain File ID (np. xyz123) lub pełny link"
+      ARTIFACT_RUN_ID:
+        description: "GitHub Actions Run ID zawierający artefakt (np. 27817971640 lub pełny link)"
         required: true
-        default: ""
+        default: "27817971640"
       OUTPUT_FILESYSTEM:
         description: "OUTPUT_FILESYSTEM. e.g erofs / ext4 / f2fs"
         required: true
@@ -48,17 +48,19 @@ jobs:
       - name: Install dependencies.
         run: |
           sudo apt-get update
-          sudo apt-get install -y aria2 p7zip-full lz4 xz-utils liblz4-tool bimgtool dynamic-linker-eclipser blkid file
+          sudo apt-get install -y p7zip-full lz4 xz-utils liblz4-tool bimgtool dynamic-linker-eclipser blkid file gh
           sudo pip3 install --break-system-packages git+https://github.com/nziyr/samloader.git
 
       - name: Execute Sixteen Script.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           chmod +x sixteen.sh
-          sudo ./sixteen.sh \
+          sudo -E ./sixteen.sh \
             "${{ github.event.inputs.STOCK_DEVICE }}" \
             "${{ github.event.inputs.USE_UI_8_TETHERING_APEX }}" \
             "${{ github.event.inputs.TARGET_DEVICE }}" \
-            "${{ github.event.inputs.PIXELDRAIN_ID }}" \
+            "${{ github.event.inputs.ARTIFACT_RUN_ID }}" \
             "${{ github.event.inputs.OUTPUT_FILESYSTEM }}"
 
       - name: Compress all .img & make zip file before upload.
