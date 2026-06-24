@@ -151,43 +151,42 @@ DETECT_FILESYSTEM() {
 }
 
 
-DOWNLOAD_PIXELDRAIN() {
+DOWNLOAD_GITHUB_ARTIFACT() {
     echo " "
 
     if [ "$#" -ne 2 ]; then
-        echo -e "Usage: ${FUNCNAME[0]} <PIXELDRAIN_ID_OR_URL> <DOWNLOAD_DIRECTORY>"
+        echo -e "Usage: ${FUNCNAME[0]} <ARTIFACT_RUN_ID_OR_URL> <DOWNLOAD_DIRECTORY>"
         return 1
     fi
 
     local INPUT_ID="$1"
     local DOWN_DIR="$2"
-    local FILE_ID=""
+    local RUN_ID=""
 
-    if [[ "$INPUT_ID" == *"pixeldrain.com"* ]]; then
-        FILE_ID=$(echo "$INPUT_ID" | sed -E 's|.*/(u\|file)/([^/?#]+).*|\2|')
+    if [[ "$INPUT_ID" == *"github.com"* ]]; then
+        RUN_ID=$(echo "$INPUT_ID" | sed -E 's|.*/runs/([^/]+).*|\1|')
     else
-        FILE_ID="$INPUT_ID"
+        RUN_ID="$INPUT_ID"
     fi
 
     rm -rf "$DOWN_DIR"
     mkdir -p "$DOWN_DIR"
 
     echo -e "======================================"
-    echo -e "   Pixeldrain Direct Downloader       "
+    echo -e "   GitHub Artifact Downloader         "
     echo -e "======================================"
-    echo -e "File ID: $FILE_ID"
+    echo -e "Run ID: $RUN_ID"
     echo -e "Downloading to: $DOWN_DIR"
 
-    local DIRECT_URL="https://pixeldrain.com/api/file/${FILE_ID}"
-
-    aria2c -x 16 -s 16 -k 1M --content-disposition-default-utf8=true --check-certificate=false -d "$DOWN_DIR" "$DIRECT_URL"
+    # Pobiera i automatycznie wypakowuje zawartość artefaktów z danego run-id do katalogu docelowego
+    gh run download "$RUN_ID" --repo "durenstudnio/johnas" --dir "$DOWN_DIR"
 
     if [ $? -ne 0 ]; then
-        echo -e "⛔️ Pixeldrain download failed! Check File ID or your daily bandwidth limit."
+        echo -e "⛔️ GitHub Artifact download failed! Sprawdź Run ID lub uprawnienia tokenu (GH_TOKEN)."
         exit 1
     fi
 
-    echo -e "✅ Download complete."
+    echo -e "✅ Download and extraction complete."
 }
 
 
@@ -976,7 +975,7 @@ PATCH_BT_LIB() {
         [132]=........f9031f2af3031f2a41 [1132]=1f2003d5f9031f2af3031f2a48
         [131]=........f9031f2af3031f2a41 [1131]=1f2003d5f9031f2af3031f2a48
         [130]=........f3031f2af4031f2a3e [1130]=1f2003d5f3031f2af4031f2a3e
-        [129]=........f4031f2af3031f2ae8030032 [1129]=1f2003d5f4031f2af3031f2ae8031f2a
+        [129]=........f4031f2af3031f2ae8030032 [1129]=1f2003d5f4031f2af3031f2af3031f2ae8031f2a
         [128]=88000034e8030032 [1128]=1f2003d5e8031f2a
         [127]=88000034e8030032 [1127]=1f2003d5e8031f2a
         [126]=88000034e8030032 [1126]=1f2003d5e8031f2a
