@@ -1,0 +1,95 @@
+name: QuantumROM Tools Sixteen.
+
+on:
+  workflow_dispatch:
+    inputs:
+      STOCK_DEVICE:
+        description: "STOCK_DEVICE_MODEL or None"
+        required: true
+        default: "SM-A225F"
+      USE_UI_8_TETHERING_APEX:
+        description: "Set True if your kernel BPF version is 5.4 (lower than 5.10)."
+        required: true
+        default: "False"
+      TARGET_DEVICE:
+        description: "TARGET_DEVICE_MODEL."
+        required: true
+        default: "SM-A346E"
+      ARTIFACT_RUN_ID:
+        description: "GitHub Actions Run ID zawierający artefakt (np. 27817971640 lub pełny link)"
+        required: true
+        default: "27817971640"
+      OUTPUT_FILESYSTEM:
+        description: "OUTPUT_FILESYSTEM. e.g erofs / ext4 / f2fs"
+        required: true
+        default: "erofs"
+      COMPRESS_IMG_TO_XZ:
+        description: "Compress IMG to XZ (True/False)"
+        required: true
+        default: "False"
+
+jobs:
+  build:
+    name: Start QuantumROM Tools Sixteen.
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository.
+        uses: actions/checkout@v4
+
+      - name: Validate STOCK_DEVICE
+        run: |
+          STOCK_DEVICE="${{ github.event.inputs.STOCK_DEVICE }}"
+          if [ "$STOCK_DEVICE" != "None" ] && [ ! -d "$(pwd)/QuantumROM/Devices/$STOCK_DEVICE" ]; then
+            echo "Error: Device config for $STOCK_DEVICE not found in QuantumROM/Devices/"
+            exit 1
+          fi
+
+      - name: Install dependencies.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full lz4 xz-utils liblz4-tool bimgtool dynamic-linker-eclipser blkid file gh
+          sudo pip3 install --break-system-packages git+https://github.com/nziyr/samloader.git
+
+      - name: Execute Sixteen Script.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x sixteen.sh
+          sudo -E ./sixteen.sh \
+            "${{ github.event.inputs.STOCK_DEVICE }}" \
+            "${{ github.event.inputs.USE_UI_8_TETHERING_APEX }}" \
+            "${{ github.event.inputs.TARGET_DEVICE }}" \
+            "${{ github.event.inputs.ARTIFACT_RUN_ID }}" \
+            "${{ github.event.inputs.OUTPUT_FILESYSTEM }}"
+
+      - name: Compress all .img & make zip file before upload.
+        run: |
+          echo "BUILD_TIME=$(TZ='Asia/Dhaka' date '+%Y-%m-%d %I:%M:%S %p UTC+6')" >> $GITHUB_ENV
+          OUT_DIR="$(pwd)/OUT"
+          ZIP_NAME="${{ github.event.inputs.TARGET_DEVICE }}_Port_For_${{ github.event.inputs.STOCK_DEVICE }}.zip"
+          ZIP_PATH="$OUT_DIR/$ZIP_NAME"
+
+          if [ "${{ github.event.inputs.COMPRESS_IMG_TO_XZ }}" = "True" ]; then
+            echo "Compressing all .img files to .xz (level 9)..."
+            for img in "$OUT_DIR"/*.img; do
+              [ -f "$img" ] || continue
+              echo "Compressing $img"
+              sudo xz -9 -T0 "$img"
+            done
+            sudo rm -f "$OUT_DIR"/*.img
+          fi
+
+          echo "Creating zip: $ZIP_NAME"
+          7z a -tzip "$ZIP_PATH" "$OUT_DIR"/* -mx=5
+          echo "ZIP_PATH=$ZIP_PATH" >> $GITHUB_ENV
+
+      - name: Upload file in GoFile & Create Release.
+        env:
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+          STOCK_DEVICE: ${{ github.event.inputs.STOCK_DEVICE }}
+          TARGET_DEVICE: ${{ github.event.inputs.TARGET_DEVICE }}
+          OUTPUT_FILESYSTEM: ${{ github.event.inputs.OUTPUT_FILESYSTEM }}
+        run: |
+          chmod +x release.sh
+          sudo ./release.sh
