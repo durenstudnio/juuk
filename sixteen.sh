@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ "$#" -lt 5 ]; then
-    echo "Usage: $0 <STOCK_DEVICE> <USE_UI_8_TETHERING_APEX> <TARGET_DEVICE> <PIXELDRAIN_ID> <OUTPUT_FILESYSTEM>"
+    echo "Usage: $0 <STOCK_DEVICE> <USE_UI_8_TETHERING_APEX> <TARGET_DEVICE> <ARTIFACT_RUN_ID> <OUTPUT_FILESYSTEM>"
     exit 1
 fi
 
@@ -9,7 +9,7 @@ fi
 export STOCK_DEVICE="$1"
 export USE_UI_8_TETHERING_APEX="$2"
 export TARGET_DEVICE="$3"
-export PIXELDRAIN_ID="$4"
+export ARTIFACT_RUN_ID="$4"
 export OUTPUT_FILESYSTEM="$5"
 
 VERSION="1"
@@ -28,8 +28,8 @@ export BUILD_PARTITIONS="product,system_ext,system"
 source "$(pwd)/scripts/debloat.sh"
 source "$(pwd)/scripts/QuantumRom.sh"
 
-# KROK 1: Pobieranie z Pixeldrain
-DOWNLOAD_PIXELDRAIN "$PIXELDRAIN_ID" "$FIRM_DIR/$TARGET_DEVICE"
+# KROK 1: Pobieranie artefaktu z GitHub Actions
+DOWNLOAD_GITHUB_ARTIFACT "$ARTIFACT_RUN_ID" "$FIRM_DIR/$TARGET_DEVICE"
 
 # KROK 2: Wypakowanie pobranego archiwum
 EXTRACT_FIRMWARE "$FIRM_DIR/$TARGET_DEVICE"
