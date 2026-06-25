@@ -29,78 +29,12 @@ export BUILD_PARTITIONS="product,system_ext,system"
 source "$(pwd)/scripts/debloat.sh"
 source "$(pwd)/scripts/QuantumRom.sh"
 
-# =================================================================
-# AUTOMATIC STRUCTURE FLATTENING FUNCTION (Anti-Nesting)
-# =================================================================
-FIX_SYSTEM_NESTING() {
-    echo "========================================================="
-    echo "- Checking for deep system-in-system nesting..."
-    echo "========================================================="
-    
-    local TARGET_FW_DIR="${FIRM_DIR}/${TARGET_DEVICE}"
-    local SYS_DIR="${TARGET_FW_DIR}/system"
+# ================================================================
+# UWAGA: FIX_SYSTEM_NESTING JEST TERAZ WYWOLYWANE NA KOŃCU
+# ================================================================
 
-    # Jeśli struktura jest zbyt głęboka (np. system/system/system/), spłaszczamy ją,
-    # ale zachowujemy dokładnie jeden podfolder 'system' (czyli system/system/), 
-    # ponieważ reszta Twojego potoku i skryptu QuantumRom.sh tego wymaga.
-    while [ -d "${SYS_DIR}/system/system" ]; do
-        echo "[!] Detected critically deep nesting. Flattening one level..."
-        
-        local TMP_DIR="${TARGET_FW_DIR}/system_tmp_nest"
-        mkdir -p "$TMP_DIR"
-        
-        # Przenosimy zawartość z najgłębszego poziomu wyżej
-        mv "${SYS_DIR}/system/system"/* "$TMP_DIR/"
-        
-        # Sprzątamy i nadpisujemy strukturę pośrednią
-        rm -rf "${SYS_DIR}/system/system"
-        mv "$TMP_DIR" "${SYS_DIR}/system/system"
-    done
-
-    # Jeśli obraz miał tylko płaski folder system/ (brak zagnieżdżenia),
-    # to tworzymy wymagany przez Twój skrypt folder system/system, aby reszta kodu nie dostała błędów.
-    if [ ! -d "${SYS_DIR}/system" ]; then
-        echo "[*] Flat system detected. Creating required system/system structure for compatibility..."
-        local TMP_DIR="${TARGET_FW_DIR}/system_tmp_flat"
-        mkdir -p "$TMP_DIR"
-        
-        # Przenosimy wszystkie pliki (bin, etc, framework) oprócz ewentualnych product/system_ext
-        for file in "${SYS_DIR}"/*; do
-            [ -e "$file" ] || continue
-            local name=$(basename "$file")
-            if [ "$name" != "product" ] && [ "$name" != "system_ext" ]; then
-                mv "$file" "$TMP_DIR/"
-            fi
-        done
-        
-        mkdir -p "${SYS_DIR}/system"
-        mv "$TMP_DIR"/* "${SYS_DIR}/system/"
-        rm -rf "$TMP_DIR"
-    fi
-
-    # Czyszczenie i korekta plików konfiguracyjnych SELinux / fs_config
-    echo "[*] Polishing config files from multi-nested paths..."
-    if [ -f "${SYS_DIR}/system/etc/selinux/plat_file_contexts" ]; then
-        sed -i -E 's|(/system)+/|/system/system/|g' "${SYS_DIR}/system/etc/selinux/plat_file_contexts"
-    fi
-    if [ -f "${SYS_DIR}/system/etc/fs_config_dirs" ]; then
-        sed -i -E 's|(system/)+|system/system/|g' "${SYS_DIR}/system/system/etc/fs_config_dirs"
-    fi
-    if [ -f "${SYS_DIR}/system/etc/fs_config_files" ]; then
-        sed -i -E 's|(system/)+|system/system/|g' "${SYS_DIR}/system/system/etc/fs_config_files"
-    fi
-
-    echo "[+] System nesting resolution complete. Structure is now standardized."
-    echo "========================================================="
-}
-
-# Pipeline start
-#EXTRACT_FIRMWARE "$FIRM_DIR/$TARGET_DEVICE"
 EXTRACT_SUPER_IMG "$FIRM_DIR/$TARGET_DEVICE"
 EXTRACT_FIRMWARE_IMG "$FIRM_DIR/$TARGET_DEVICE" "all"
-
-# === UNIFORMIZACJA STRUKTURY ===
-FIX_SYSTEM_NESTING
 
 DECODE_OMC "$FIRM_DIR/$TARGET_DEVICE" "$WORK_DIR"
 DEBLOAT "$FIRM_DIR/$TARGET_DEVICE"
@@ -128,6 +62,11 @@ RECOMPILE "$APKTOOL" "$FIRM_DIR/$TARGET_DEVICE/system/system/framework" "$WORK_D
 mv -f "$WORK_DIR"/*.jar "$FIRM_DIR/$TARGET_DEVICE/system/system/framework/"
 
 PATCH_BT_LIB "$FIRM_DIR/$TARGET_DEVICE" "$WORK_DIR"
+
+# ================================================================
+# FINALNA NORMALIZACJA – WYKONYWANA TUŻ PRZED BUDOWANIEM
+# ================================================================
+FIX_SYSTEM_NESTING
 
 B_ID="$(grep -m1 '^ro.system.build.id=' "$FIRM_DIR/$TARGET_DEVICE/system/system/build.prop" | cut -d= -f2 | tr -d '\r')"
 B_V="$(grep -m1 '^ro.system.build.version.incremental=' "$FIRM_DIR/$TARGET_DEVICE/system/system/build.prop" | cut -d= -f2 | tr -d '\r')"
