@@ -99,20 +99,21 @@ FIX_SYSTEM_NESTING() {
 EXTRACT_SUPER_IMG "$FIRM_DIR/$TARGET_DEVICE"
 EXTRACT_FIRMWARE_IMG "$FIRM_DIR/$TARGET_DEVICE" "all"
 
-# === TU NASTĘPUJE UNIFORMIDACJA STRUKTURY POD TWÓJ SKRYPT ===
+# === UNIFORMIZACJA STRUKTURY ===
 FIX_SYSTEM_NESTING
 
 DECODE_OMC "$FIRM_DIR/$TARGET_DEVICE" "$WORK_DIR"
 DEBLOAT "$FIRM_DIR/$TARGET_DEVICE"
 
 APPLY_STOCK_CONFIG "$FIRM_DIR/$TARGET_DEVICE"
-PATCH_CSC "$FIRM_DIR/$TARGET_DEVICE"
+PATCH_SELINUX "$FIRM_DIR/$TARGET_DEVICE"
+DISABLE_SECURITY "$FIRM_DIR/$TARGET_DEVICE"
+ADD_SAMSUNG_FLAGSHIP_APPS "$FIRM_DIR/$TARGET_DEVICE"
+APPLY_CUSTOM_FEATURES "$FIRM_DIR/$TARGET_DEVICE"
 
-DISABLE_FBE "$FIRM_DIR/$TARGET_DEVICE"
-DISABLE_FDE "$FIRM_DIR/$TARGET_DEVICE"
+INSTALL_FRAMEWORK "$APKTOOL" "$FIRM_DIR/$TARGET_DEVICE/system/system/framework/framework-res.apk"
 
-# Adjust partitions size
-
+DECOMPILE "$APKTOOL" "$FIRM_DIR/$TARGET_DEVICE/system/system/framework" "$FIRM_DIR/$TARGET_DEVICE/system/system/framework/ssrm.jar" "$WORK_DIR"
 DECOMPILE "$APKTOOL" "$FIRM_DIR/$TARGET_DEVICE/system/system/framework" "$FIRM_DIR/$TARGET_DEVICE/system/system/framework/services.jar" "$WORK_DIR"
 DECOMPILE "$APKTOOL" "$FIRM_DIR/$TARGET_DEVICE/system/system/framework" "$FIRM_DIR/$TARGET_DEVICE/system/system/framework/samsungkeystoreutils.jar" "$WORK_DIR"
 
@@ -129,44 +130,8 @@ mv -f "$WORK_DIR"/*.jar "$FIRM_DIR/$TARGET_DEVICE/system/system/framework/"
 PATCH_BT_LIB "$FIRM_DIR/$TARGET_DEVICE" "$WORK_DIR"
 
 B_ID="$(grep -m1 '^ro.system.build.id=' "$FIRM_DIR/$TARGET_DEVICE/system/system/build.prop" | cut -d= -f2 | tr -d '\r')"
-B_V="$(grep -m1 '^ro.system.build.version.release=' "$FIRM_DIR/$TARGET_DEVICE/system/system/build.prop" | cut -d= -f2 | tr -d '\r')"
-B_D="$(grep -m1 '^ro.build.date.utc=' "$FIRM_DIR/$TARGET_DEVICE/system/system/build.prop" | cut -d= -f2 | tr -d '\r')"
+B_V="$(grep -m1 '^ro.system.build.version.incremental=' "$FIRM_DIR/$TARGET_DEVICE/system/system/build.prop" | cut -d= -f2 | tr -d '\r')"
+BUILD_PROP "$FIRM_DIR/$TARGET_DEVICE" "system" "ro.build.display.id" "${B_ID} ${B_V} V-${VERSION}: Built with Quantum Tools"
+BUILD_PROP "$FIRM_DIR/$TARGET_DEVICE" "product" "ro.build.display.id" "${B_ID} ${B_V} V-${VERSION}: Built with Quantum Tools"
 
-SET_BASE_PROP "$FIRM_DIR/$TARGET_DEVICE" "$B_ID" "$B_V" "$B_D"
-
-# Porting adjustments
-ADJUST_SYSTEM_EXT "$FIRM_DIR/$TARGET_DEVICE"
-FIX_VNDK "$FIRM_DIR/$TARGET_DEVICE" "$VNDKS_COLLECTION"
-
-# Remount / read-write fix
-PATCH_REMOUNT "$FIRM_DIR/$TARGET_DEVICE"
-
-# Setup device files
-SETUP_DEVICE_FILES "$DEVICES_DIR" "$TARGET_DEVICE" "$FIRM_DIR/$TARGET_DEVICE"
-
-# Check apexes
-CHECK_APEXES "$FIRM_DIR/$TARGET_DEVICE" "$WORK_DIR" "$USE_UI_8_TETHERING_APEX"
-
-# Clear work dir
-rm -rf "$WORK_DIR"/*
-
-# Rebuild images
-for p in $(echo "$BUILD_PARTITIONS" | tr ',' ' '); do
-    BUILD_FIRMWARE_IMG "$FIRM_DIR/$TARGET_DEVICE" "$p" "$OUTPUT_FILESYSTEM"
-done
-
-BUILD_SUPER_IMG "$FIRM_DIR/$TARGET_DEVICE" "$OUT_DIR"
-
-# Copy images to output folder
-echo "Copying output images..."
-for img in "$FIRM_DIR/$TARGET_DEVICE"/*.img; do
-    [ -f "$img" ] || continue
-    case "$(basename "$img")" in
-        boot.img|init_boot.img|recovery.img|vbmeta.img|vbmeta_system.img|vbmeta_vendor.img|dtbo.img|vendor_boot.img)
-            cp -f "$img" "$OUT_DIR/"
-            echo "- Copied $(basename "$img") to OUT directory"
-            ;;
-    esac
-done
-
-echo "Done!"
+BUILD_IMG "$FIRM_DIR/$TARGET_DEVICE" "all" "$OUTPUT_FILESYSTEM" "$OUT_DIR"
