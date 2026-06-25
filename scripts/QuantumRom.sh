@@ -2555,3 +2555,61 @@ BUILD_SUPER_IMG() {
         $IMAGES \
         --output "$OUTPUT_IMG"
 }
+
+
+# =================================================================
+# FINAL SYSTEM NESTING NORMALIZATION
+# =================================================================
+FIX_SYSTEM_NESTING() {
+    echo "========================================================="
+    echo "- Final system nesting normalization..."
+    echo "========================================================="
+    
+    local TARGET_FW_DIR="${FIRM_DIR}/${TARGET_DEVICE}"
+    local SYS_DIR="${TARGET_FW_DIR}/system"
+
+    # 1. Jeśli istnieje TRZECI poziom (system/system/system/) – spłaszczamy do drugiego
+    while [ -d "${SYS_DIR}/system/system/system" ]; do
+        echo "[!] Detected critically deep nesting. Flattening one level..."
+        local TMP_DIR="${TARGET_FW_DIR}/system_tmp_nest"
+        mkdir -p "$TMP_DIR"
+        mv "${SYS_DIR}/system/system/system"/* "$TMP_DIR/"
+        rm -rf "${SYS_DIR}/system/system/system"
+        mv "$TMP_DIR" "${SYS_DIR}/system/system"
+    done
+
+    # 2. Jeśli system/ jest płaski (brak system/system/), tworzymy wymagany poziom
+    if [ ! -d "${SYS_DIR}/system" ]; then
+        echo "[*] Flat system detected. Creating required system/system structure..."
+        local TMP_DIR="${TARGET_FW_DIR}/system_tmp_flat"
+        mkdir -p "$TMP_DIR"
+        for file in "${SYS_DIR}"/*; do
+            [ -e "$file" ] || continue
+            local name=$(basename "$file")
+            if [ "$name" != "product" ] && [ "$name" != "system_ext" ]; then
+                mv "$file" "$TMP_DIR/"
+            fi
+        done
+        mkdir -p "${SYS_DIR}/system"
+        mv "$TMP_DIR"/* "${SYS_DIR}/system/"
+        rm -rf "$TMP_DIR"
+    fi
+
+    # 3. Poprawki ścieżek w plikach kontekstów – tylko jeśli istnieją
+    echo "[*] Polishing config files from multi-nested paths..."
+    
+    if [ -f "${SYS_DIR}/system/etc/selinux/plat_file_contexts" ]; then
+        sed -i -E 's|(/system)+/|/system/system/|g' "${SYS_DIR}/system/etc/selinux/plat_file_contexts"
+    fi
+    
+    if [ -f "${SYS_DIR}/system/etc/fs_config_dirs" ]; then
+        sed -i -E 's|(system/)+|system/system/|g' "${SYS_DIR}/system/etc/fs_config_dirs"
+    fi
+    
+    if [ -f "${SYS_DIR}/system/etc/fs_config_files" ]; then
+        sed -i -E 's|(system/)+|system/system/|g' "${SYS_DIR}/system/etc/fs_config_files"
+    fi
+
+    echo "[+] Final system nesting resolution complete."
+    echo "========================================================="
+}
